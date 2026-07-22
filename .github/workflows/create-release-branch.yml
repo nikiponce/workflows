@@ -1,0 +1,66 @@
+name: Create release branch and update package version
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Release version (semver, e.g. 5.0.8)"
+        required: true
+        default: "5.0.8"
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_VERSION: ${{ inputs.release_version }}
+
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate release version
+        run: |
+          if ! echo "$RELEASE_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid release version '$RELEASE_VERSION'. Expected semver x.y.z"
+            exit 1
+          fi
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Create release branch
+        run: |
+          BRANCH="release/$RELEASE_VERSION"
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "::error::Branch $BRANCH already exists on origin"
+            exit 1
+          fi
+          git checkout -b "$BRANCH"
+
+      - name: Update package.json version
+        run: |
+          node -e "
+          const fs = require('fs');
+          const path = 'www/package.json';
+          const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+          pkg.version = process.env.RELEASE_VERSION;
+          fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+      - name: Commit changes
+        run: |
+          BRANCH="release/$RELEASE_VERSION"
+          git add www/package.json
+          git commit -m "chore: set package version for $BRANCH" || echo "No changes to commit"
+
+      - name: Push branch
+        run: |
+          BRANCH="release/$RELEASE_VERSION"
+          git push origin "$BRANCH"

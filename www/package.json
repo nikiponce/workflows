@@ -1,0 +1,9 @@
+{
+  "name": "app",
+  "private": true,
+  "version": "2.0.8",
+  "type": "module",
+  "scripts": {
+    "dev": "vite"
+  }
+}
